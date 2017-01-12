@@ -19,4 +19,5 @@ Gem::Specification.new do |gem|
 
   gem.add_dependency('trollop', '~> 2.0')
   gem.add_dependency('highline', '~> 1.6.19')
+  gem.add_dependency('ruby-puppetdb', '>=1.6.1', '<2.9.0')
 end
