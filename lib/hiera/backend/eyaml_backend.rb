@@ -167,7 +167,7 @@ class Hiera
       
       def decrypt_or_get_from_puppetdb(data)
         decrypt(data) if encrypted?(data)
-        get_from_puppetdb(data) if is_from_puppetdbencrypted?(data)
+        get_from_puppetdb(data) if from_puppetdb?(data)
         data
       end
     end
