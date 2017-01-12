@@ -3,7 +3,7 @@ require 'hiera/backend/eyaml/utils'
 require 'hiera/backend/eyaml/options'
 require 'hiera/backend/eyaml/parser/parser'
 require 'hiera/filecache'
-require 'ruby-puppetdb'
+#require 'ruby-puppetdb'
 
 require 'yaml'
 
@@ -97,16 +97,8 @@ class Hiera
 
         data = data.sub("puppetdb:", "")
         
-        # Support specifying the query in a few different ways
-        if data.is_a? Hash
-          query = data['query']
-          fact = data['fact']
-        elsif data.is_a? Array
-          query, fact = *data
-        else
-          query = data.to_s
-        end
-
+        query, fact = data.split(",")
+        
         if fact then
           query = @puppetdb.parse_query query, :facts if query.is_a? String
           @puppetdb.facts([fact], query).each_value.collect { |facts| facts[fact] }.sort
