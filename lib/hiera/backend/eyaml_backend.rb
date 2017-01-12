@@ -3,6 +3,7 @@ require 'hiera/backend/eyaml/utils'
 require 'hiera/backend/eyaml/options'
 require 'hiera/backend/eyaml/parser/parser'
 require 'hiera/filecache'
+require 'ruby-puppetdb'
 
 require 'yaml'
 
@@ -17,6 +18,22 @@ class Hiera
 
         @cache     = cache || Filecache.new
         @extension = Config[:eyaml][:extension] || "eyaml"
+
+        Hiera.debug("Hiera PuppetDB *embedded in eyaml* backend starting")
+        require 'puppetdb/connection'
+        begin
+          require 'puppet'
+          # This is needed when we run from hiera cli
+          Puppet.initialize_settings unless Puppet[:confdir]
+          require 'puppet/util/puppetdb'
+          server = Puppet::Util::Puppetdb.server
+          port = Puppet::Util::Puppetdb.port
+        rescue
+          server = 'puppetdb'
+          port = 443
+        end
+
+        @puppetdb = PuppetDB::Connection.new(server, port)
       end
 
       def lookup(key, scope, order_override, resolution_type)
@@ -75,19 +92,43 @@ class Hiera
         Hiera.debug("[eyaml_backend]: #{message}")
       end
 
-      def decrypt(data)
-        if encrypted?(data)
-          debug("Attempting to decrypt")
+      def get_from_puppetdb(data)
+        debug("Getting from PuppetDB")
 
-          parser = Eyaml::Parser::ParserFactory.hiera_backend_parser
-          tokens = parser.parse(data)
-          decrypted = tokens.map{ |token| token.to_plain_text }
-          plaintext = decrypted.join
-
-          plaintext.chomp
+        data = data.sub("puppetdb:", "")
+        
+        # Support specifying the query in a few different ways
+        if data.is_a? Hash
+          query = data['query']
+          fact = data['fact']
+        elsif data.is_a? Array
+          query, fact = *data
         else
-          data
+          query = data.to_s
         end
+
+        if fact then
+          query = @puppetdb.parse_query query, :facts if query.is_a? String
+          @puppetdb.facts([fact], query).each_value.collect { |facts| facts[fact] }.sort
+        else
+          query = @puppetdb.parse_query query, :nodes if query.is_a? String
+          @puppetdb.query(:nodes, query).collect { |n| n['name'] }
+        end
+      end
+      
+      def from_puppetdb?(data)
+        /.*puppetdb\:.*/ =~ data ? true : false
+      end
+      
+      def decrypt(data)
+        debug("Attempting to decrypt")
+
+        parser = Eyaml::Parser::ParserFactory.hiera_backend_parser
+        tokens = parser.parse(data)
+        decrypted = tokens.map{ |token| token.to_plain_text }
+        plaintext = decrypted.join
+
+        plaintext.chomp
       end
 
       def encrypted?(data)
@@ -128,8 +169,14 @@ class Hiera
       end
 
       def parse_string(data, scope, extra_data={})
-        decrypted_data = decrypt(data)
+        decrypted_data = decrypt_or_get_from_puppetdb(data)
         Backend.parse_string(decrypted_data, scope, extra_data)
+      end
+      
+      def decrypt_or_get_from_puppetdb(data)
+        decrypt(data) if encrypted?(data)
+        get_from_puppetdb(data) if is_from_puppetdbencrypted?(data)
+        data
       end
     end
   end

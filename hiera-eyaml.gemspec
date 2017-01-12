@@ -5,7 +5,7 @@ require 'hiera/backend/eyaml'
 
 Gem::Specification.new do |gem|
   gem.name          = "hiera-eyaml"
-  gem.version       = Hiera::Backend::Eyaml::VERSION
+  gem.version       = "3.0.0"
   gem.description   = "Hiera backend for decrypting encrypted yaml properties"
   gem.summary       = "OpenSSL Encryption backend for Hiera"
   gem.author        = "Tom Poulton"
